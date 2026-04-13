@@ -3,77 +3,80 @@ import re
 from mdutils.mdutils import MdUtils
 import json
 from bs4 import BeautifulSoup
+from markdownify import markdownify as mdf
 
-# TODO
-def question_convert_to_md( html_content ):
-  soup = BeautifulSoup( html_content, "html.parser" )
+def generateMd( num: int , withAnswer: bool = False, withExp : bool = False ):
 
-# convert explanation part to markdown
-def explanation_convert_to_md( html_content ):
-  # html_content = html_content.replace("<strong>","").replace("</strong>","")
-  try:
-    html_content = bytes(
-      html_content,
-      "utf-8"
-    ).decode(
-      "unicode_escape"
-    )
-  except:
-    pass
+
+  with open(f'{num}.json', 'r', encoding='utf-8') as file:
+    data = json.load(file)
+
+  number_of_qs = int( data['count'] )
+
+  mdFile = MdUtils(
+    file_name= f"""Spring认证官方970道真题 第{num}部分 共计{number_of_qs}题{"答案" if withAnswer else ""} {"解析" if withExp else ""}"""
+  )
+
+  mdFile.new_header(
+    title=  f"""Spring认证官方970道真题 第{num}部分 共计{number_of_qs}题{"w答案" if withAnswer else ""} {"解析" if withExp else ""}""",
+    level=1
+  )
+
+  #  count number of questions
+
+
+  selection_str = ["(A)", "(B)", "(C)", "(D)","(E)","(F)","(G)","(H)"]
 
   h = html2text.HTML2Text()
-  h.ignore_links = False
-  h.bypass_tables = False
-  h.mark_code = False
-  h.ignore_emphasis = True
-  h.single_line_break = True
+
   h.body_width = 0
 
-  markdown = h.handle(html_content)
-  markdown = re.sub(r'^\s*$\n?', '', markdown, flags=re.MULTILINE).strip()
-  return markdown
+  for i in range(number_of_qs) :
+    mdFile.new_header(  title= "Question #" + str(i+1) , level=2 )
 
-mdFile = MdUtils(
-  file_name='Spring认证官方970道真题 PART 1'
-)
+    mdFile.new_header( title="Question", level=3 )
 
-mdFile.new_header(
-  title='Spring认证官方970道真题 PART 1',
-  level=1
-)
+    question_md = mdf( data['results'][i]['prompt']['question']).strip()
 
-with open('1.json', 'r', encoding='utf-8') as file:
-  data = json.load(file)
+    question_md = re.sub(r'\s*```\s*java', r'\n```java\n',question_md)
+    question_md = re.sub(r'\s*```\s*json', r'\n```json\n',question_md)
+    mdFile.new_paragraph( text="Question: " + question_md )
+    
+    # ANALYZE ANSWER PART
+    for j in range( len(data['results'][i]['prompt']['answers']) ):
+      mdFile.new_paragraph( text= "**" + selection_str[j] + "**" + " " + h.handle( data['results'][i]['prompt']['answers'][j] ).strip() )
 
-#  count number of questions
-
-number_of_qs = int( data['count'] )
-
-selection_str = ["(A)", "(B)", "(C)", "(D)"]
-
-h = html2text.HTML2Text()
-
-h.body_width = 0
-
-for i in range(number_of_qs) :
-  mdFile.new_header(  title= "Question #" + str(i+1) , level=2 )
-  mdFile.new_paragraph( text="Question: " + h.handle( data['results'][i]['prompt']['question']).strip() , bold_italics_code='b'  )
-  for j in range(4):
-    mdFile.new_paragraph( text= selection_str[j] + " " + h.handle( data['results'][i]['prompt']['answers'][j] ).strip() )
-  mdFile.new_paragraph( text="Answer: " + h.handle( data['results'][i]['correct_response'][0]).strip().capitalize() , bold_italics_code='b'  )
-  mdFile.new_paragraph( "Explanation", bold_italics_code='b')
-  mdFile.new_paragraph( explanation_convert_to_md(
-    data['results'][i]['prompt']['explanation']
-  )  )
-  mdFile.new_line()
+    if withAnswer:
+      mdFile.new_header( title="Answer", level=3 )
+      mdFile.new_paragraph( h.handle( data['results'][i]['correct_response'][0]).strip().capitalize() )
 
 
-# mdFile.new_paragraph(
-#   html_convert_to_md(
-#     data['results'][0]['prompt']['explanation']
-#   )
-# )
+    
+    try:
+      mdFile.new_header( title="Explanation", level=3 )
+      explanation_md = mdf(
+        data['results'][i]['prompt']['explanation']
+      )
+      explanation_md = re.sub(r'\s*```\s*java', r'\n```java\n', explanation_md)
+      explanation_md = re.sub(r'\s*```\s*json', r'\n```json\n',explanation_md)
+      mdFile.new_paragraph( explanation_md  )
+    except:
+      pass
+    
+    mdFile.new_line()
 
-mdFile.create_md_file()
+
+  # mdFile.new_paragraph(
+  #   html_convert_to_md(
+  #     data['results'][0]['prompt']['explanation']
+  #   )
+  # )
+
+  mdFile.create_md_file()
+
+for i in range(6):
+  generateMd(i+1)
+  generateMd(i+1 , withAnswer= True)
+  generateMd(i+1, withAnswer=True , withExp= True)
 
 print("😊DONE")
